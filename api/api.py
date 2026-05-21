@@ -39,8 +39,8 @@ def inicializar_cerebro():
         with open(os.path.join(diretorio_wiki, "guia.md"), "w") as f:
             f.write("# Segundo Cérebro\nColoque suas anotações Markdown aqui.")
 
-        leitor = SimpleDirectoryReader(input_dir=diretorio_wiki, required_exts=[".md"], recursive=True)
-        documentos = leitor.load_data()
+    leitor = SimpleDirectoryReader(input_dir=diretorio_wiki, required_exts=[".md"], recursive=True)
+    documentos = leitor.load_data()
     
     indice = VectorStoreIndex.from_documents(documentos)
     motor_de_busca = indice.as_query_engine(similarity_top_k=1)

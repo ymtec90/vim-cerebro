@@ -1,0 +1,4 @@
+flask==3.0.0
+llama-index-core
+llama-index-llms-ollama
+llama-index-embeddings-ollama

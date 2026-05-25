@@ -2,6 +2,9 @@
 " AUTO-START DA API FLASK
 " ==============================================================================
 
+" Pegamos o caminho raiz do plugin AQUI FORA, onde <sfile> funciona corretamente
+let s:plugin_root = expand('<sfile>:p:h:h')
+
 " Variável para guardar o ID do processo em background
 let s:api_job = -1
 
@@ -13,9 +16,8 @@ function! s:StartCerebroAPI()
     if l:status =~# 'offline'
         echom "🧠 Inicializando o Segundo Cérebro em background..."
         
-        " Descobre o diretório raiz do plugin dinamicamente
-        let l:plugin_root = expand('<sfile>:p:h:h')
-        let l:api_dir = l:plugin_root . '/api'
+        " Usa a variável s:plugin_root que foi resolvida globalmente
+        let l:api_dir = s:plugin_root . '/api'
         
         " Permite que o usuário defina o executável do Python no .vimrc
         let l:python_path = get(g:, 'cerebro_python_cmd', 'python3')
@@ -28,7 +30,7 @@ function! s:StartCerebroAPI()
         " Adicionamos os argumentos ao comando
         let l:cmd = [l:python_path, l:api_script, '--wiki-dir', l:wiki_dir]
         
-        " Inicia o processo de forma assíncrona na pasta da API
+        " Inicia o processo de forma assíncrona usando o diretório correto
         let s:api_job = job_start(l:cmd, {'cwd': l:api_dir})
     endif
 endfunction

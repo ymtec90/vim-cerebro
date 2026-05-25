@@ -1,4 +1,178 @@
 " ==============================================================================
+" Plugin: vim-cerebro
+" Descrição: Interface para o Segundo Cérebro RAG (Ollama + LlamaIndex)
+" ==============================================================================
+
+if exists('g:loaded_cerebro')
+    finish
+endif
+let g:loaded_cerebro = 1
+
+" Configuração de porta padrão (o usuário pode sobrescrever no .vimrc)
+let g:cerebro_api_url = get(g:, 'cerebro_api_url', 'http://127.0.0.1:5000/perguntar')
+
+let s:cerebro_buf = -1
+
+" --- FUNÇÕES PRINCIPAIS ---
+
+function! s:ConsultarCerebro(pergunta, usar_contexto)
+    " Prepara o contexto do arquivo atual, se solicitado
+    let l:contexto = ""
+    if a:usar_contexto
+        let l:contexto = join(getline(1, '$'), "\n")
+    endif
+
+    " Prepara a janela horizontal abaixo do buffer atual
+    if !bufexists(s:cerebro_buf) || bufwinnr(s:cerebro_buf) == -1
+        " Abre horizontalmente na parte inferior
+        rightbelow new
+        let s:cerebro_buf = bufnr('%')
+        setlocal buftype=nofile bufhidden=hide noswapfile wrap
+        " Define a altura do painel para 5 linhas
+        resize 5
+    else
+        execute bufwinnr(s:cerebro_buf) . 'wincmd w'
+    endif
+
+    " Feedback visual inicial
+    normal! ggdG
+    call setline(1, "🧠 Pergunta: " . a:pergunta)
+    if a:usar_contexto
+        call append(1, "📎 [Lendo contexto do arquivo atual]")
+    endif
+    call append(line('$'), "⏳ Consultando a base (Pode continuar programando)...")
+    
+    " Retorna ao código do usuário
+    wincmd p
+
+    " Prepara payload e requisição assíncrona
+    let l:json_payload = json_encode({'pergunta': a:pergunta, 'contexto': l:contexto})
+    let s:temp_file = tempname()
+    let l:cmd = ['curl', '-s', '-X', 'POST', g:cerebro_api_url, 
+               \ '-H', 'Content-Type: application/json', 
+               \ '-d', l:json_payload, '-o', s:temp_file]
+
+    call job_start(l:cmd, {'close_cb': function('s:CerebroFinalizado')})
+endfunction
+
+function! s:CerebroFinalizado(channel)
+    if filereadable(s:temp_file)
+        let l:raw_json = join(readfile(s:temp_file), "")
+        call delete(s:temp_file)
+        
+        try
+            let l:response = json_decode(l:raw_json)
+            let l:linhas_texto = []
+            
+            " 1. Prepara o conteúdo do texto
+            if has_key(l:response, 'resposta')
+                let l:linhas_texto = ["🧠 Resposta do Segundo Cérebro:", "=============================================", ""] + split(l:response['resposta'], "\n")
+            elseif has_key(l:response, 'erro')
+                let l:linhas_texto = ["❌ Erro da API: " . l:response['erro']]
+            endif
+            
+            " Se não houver texto, aborta
+            if empty(l:linhas_texto)
+                return
+            endif
+
+            " 2. FECHA A BARRA HORIZONTAL TEMPORÁRIA
+            if bufwinnr(s:cerebro_buf) != -1
+                execute bufwinnr(s:cerebro_buf) . 'wincmd q'
+            endif
+
+            " 3. INTEGRAÇÃO COM FLOATERM
+            if exists(':FloatermNew') == 2
+                " Cria um arquivo temporário com extensão .md para syntax highlight
+                let l:md_file = tempname() . '.md'
+                call writefile(l:linhas_texto, l:md_file)
+                
+                " Executa o floaterm
+                let l:floaterm_cmd = 'FloatermNew --title=Cérebro --width=0.7 --height=0.8 --autoclose=1 less ' . l:md_file
+                execute l:floaterm_cmd
+            
+            " 4. FALLBACK: Barra horizontal caso o Floaterm dê problema
+            else
+                if !bufexists(s:cerebro_buf) || bufwinnr(s:cerebro_buf) == -1
+                    rightbelow new
+                    let s:cerebro_buf = bufnr('%')
+                    setlocal buftype=nofile bufhidden=hide noswapfile wrap
+                    " Se for mostrar a resposta aqui, deixa um pouco maior (15 linhas)
+                    resize 15
+                else
+                    execute bufwinnr(s:cerebro_buf) . 'wincmd w'
+                endif
+                normal! ggdG
+                call append(0, l:linhas_texto)
+                wincmd p
+            endif
+            
+        catch
+            " Falha silenciosa para evitar erros quebrando a tela do Vim
+        endtry
+    endif
+endfunction
+
+" Variável para armazenar o arquivo temporário da troca de modelo
+let s:modelo_temp_file = ""
+
+function! s:TrocarModelo(modelo)
+    let l:json_payload = json_encode({'modelo': a:modelo})
+    let s:modelo_temp_file = tempname()
+    
+    " Pega a URL de consulta padrão e substitui 'perguntar' por 'trocar_modelo'
+    let l:url = substitute(g:cerebro_api_url, 'perguntar$', 'trocar_modelo', '')
+
+    let l:cmd = ['curl', '-s', '-X', 'POST', l:url, 
+               \ '-H', 'Content-Type: application/json', 
+               \ '-d', l:json_payload, '-o', s:modelo_temp_file]
+
+    echom "🔄 Carregando o modelo " . a:modelo . " na memória (Aguarde)..."
+    call job_start(l:cmd, {'close_cb': function('s:ModeloTrocado')})
+endfunction
+
+function! s:ModeloTrocado(channel)
+    if filereadable(s:modelo_temp_file)
+        let l:raw_json = join(readfile(s:modelo_temp_file), "")
+        call delete(s:modelo_temp_file)
+        
+        try
+            let l:response = json_decode(l:raw_json)
+            if has_key(l:response, 'sucesso')
+                echom "✅ " . l:response['sucesso']
+            elseif has_key(l:response, 'erro')
+                echom "❌ Erro ao trocar modelo: " . l:response['erro']
+            endif
+        catch
+            echom "❌ Erro ao ler resposta da API."
+        endtry
+    endif
+endfunction
+
+" --- COMANDOS EXPOSTOS ---
+
+command! -nargs=+ Cerebro call s:ConsultarCerebro(<q-args>, 0)
+command! -nargs=+ CerebroContexto call s:ConsultarCerebro(<q-args>, 1)
+command! -nargs=1 CerebroModelo call s:TrocarModelo(<q-args>)
+
+" --- MAPEAMENTOS (KEYBINDS) ---
+
+" O usuário pode mapear o leader para espaço no seu .vimrc se já não tiver:
+" let mapleader = " "
+
+" <leader>c -> Pergunta Simples
+nnoremap <Plug>(CerebroPrompt) :Cerebro <C-R>=input("Pergunta para o Cérebro: ")<CR><CR>
+if !hasmapto('<Plug>(CerebroPrompt)')
+    nmap <leader>c <Plug>(CerebroPrompt)
+endif
+
+" <leader>ctx -> Pergunta com o contexto do arquivo atual
+nnoremap <Plug>(CerebroContextoPrompt) :CerebroContexto <C-R>=input("Pergunta sobre este arquivo: ")<CR><CR>
+if !hasmapto('<Plug>(CerebroContextoPrompt)')
+    nmap <leader>ctx <Plug>(CerebroContextoPrompt)
+endif
+
+" ==============================================================================
 " AUTO-START DA API FLASK
 " ==============================================================================
 

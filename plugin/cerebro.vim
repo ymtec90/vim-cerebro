@@ -87,17 +87,17 @@ function! s:CerebroFinalizado(channel)
                 let l:md_file = tempname() . '.md'
                 call writefile(l:linhas_texto, l:md_file)
                 
-                " Executa o floaterm
-                let l:floaterm_cmd = 'FloatermNew --title=Cérebro --width=0.7 --height=0.8 --autoclose=1 less ' . l:md_file
+                " CORREÇÃO 1: shellescape para garantir que caminhos no Linux não quebrem o comando
+                " CORREÇÃO 2: --autoclose=0 garante que a janela fique aberta mesmo se o comando terminar
+                let l:floaterm_cmd = 'FloatermNew --title=Cérebro --width=0.7 --height=0.8 --autoclose=0 less ' . shellescape(l:md_file)
                 execute l:floaterm_cmd
             
-            " 4. FALLBACK: Barra horizontal caso o Floaterm dê problema
+            " 4. FALLBACK: Barra horizontal caso o Floaterm não exista
             else
                 if !bufexists(s:cerebro_buf) || bufwinnr(s:cerebro_buf) == -1
                     rightbelow new
                     let s:cerebro_buf = bufnr('%')
                     setlocal buftype=nofile bufhidden=hide noswapfile wrap
-                    " Se for mostrar a resposta aqui, deixa um pouco maior (15 linhas)
                     resize 15
                 else
                     execute bufwinnr(s:cerebro_buf) . 'wincmd w'
@@ -108,7 +108,8 @@ function! s:CerebroFinalizado(channel)
             endif
             
         catch
-            " Falha silenciosa para evitar erros quebrando a tela do Vim
+            " CORREÇÃO 3: Agora o erro é exibido na barra inferior se algo der errado
+            echom "❌ Erro ao exibir resposta: " . v:exception
         endtry
     endif
 endfunction

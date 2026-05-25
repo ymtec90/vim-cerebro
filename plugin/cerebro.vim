@@ -183,7 +183,8 @@ let s:plugin_root = expand('<sfile>:p:h:h')
 let s:api_job = -1
 
 function! s:StartCerebroAPI()
-    " 1. Verifica se a porta 5000 já está respondendo
+    " 1. Verifica se a porta 5000 já está respondendo (outro Vim pode ter ligado a API)
+    " O comando curl falha silenciosamente se a API estiver desligada
     let l:check_cmd = 'curl -s -o /dev/null http://127.0.0.1:5000/perguntar || echo "offline"'
     let l:status = system(l:check_cmd)
 
@@ -197,14 +198,14 @@ function! s:StartCerebroAPI()
         let l:python_path = get(g:, 'cerebro_python_cmd', 'python3')
         let l:api_script = l:api_dir . '/api.py'
 
-        " Pega o diretório configurado pelo usuário ou usa um padrão
+        " Pega o diretório configurado pelo usuário no .vimrc ou usa um padrão
         let l:wiki_dir_padrao = l:api_dir . "/dados"
         let l:wiki_dir = expand(get(g:, 'cerebro_wiki_dir', l:wiki_dir_padrao))
 
         " Adicionamos os argumentos ao comando
         let l:cmd = [l:python_path, l:api_script, '--wiki-dir', l:wiki_dir]
         
-        " Inicia o processo de forma assíncrona usando o diretório correto
+        " Inicia o processo de forma assíncrona, definindo o diretório correto
         let s:api_job = job_start(l:cmd, {'cwd': l:api_dir})
     endif
 endfunction
@@ -220,6 +221,8 @@ endfunction
 " Cria os gatilhos automáticos
 augroup CerebroAutoStart
     autocmd!
+    " Executa a função de ligar assim que o Vim terminar de carregar a interface
     autocmd VimEnter * call s:StartCerebroAPI()
+    " Executa a função de desligar logo antes do Vim fechar
     autocmd VimLeave * call s:StopCerebroAPI()
 augroup END

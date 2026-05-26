@@ -36,6 +36,14 @@ def inicializar_cerebro():
     # para evitar que o LlamaIndex quebre ao tentar ler uma pasta vazia.
     if not os.path.exists(diretorio_wiki):
         os.makedirs(diretorio_wiki, exist_ok=True)
+
+    tem_markdown = False
+    for root, _, files in os.walk(diretorio_wiki):
+        if any(f.endswith('.md') for f in files):
+            tem_markdown = True
+            break
+
+    if not tem_markdown:
         with open(os.path.join(diretorio_wiki, "guia.md"), "w") as f:
             f.write("# Segundo Cérebro\nColoque suas anotações Markdown aqui.")
 

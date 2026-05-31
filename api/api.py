@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 from flask import Flask, request, jsonify
 from llama_index.core import SimpleDirectoryReader, Settings, VectorStoreIndex
 from llama_index.embeddings.ollama import OllamaEmbedding
@@ -88,6 +89,11 @@ def trocar_modelo():
         return jsonify({"erro": "Nome do modelo ausente."}), 400
         
     novo_modelo = dados['modelo']
+
+    # Validação de segurança: apenas caracteres alfanuméricos, ponto, traço, underscore e opcionalmente :tag
+    if not isinstance(novo_modelo, str) or not re.match(r'^[a-zA-Z0-9_.-]+(:[a-zA-Z0-9_.-]+)?$', novo_modelo):
+        return jsonify({"erro": "Nome do modelo inválido."}), 400
+
     print(f"\n[API] Trocando modelo para: {novo_modelo}")
     
     try:

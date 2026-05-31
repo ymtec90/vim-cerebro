@@ -1,7 +1,7 @@
 import os
 import sys
 from flask import Flask, request, jsonify
-from llama_index.core import SimpleDirectoryReader, Settings, VectorStoreIndex
+from llama_index.core import SimpleDirectoryReader, Settings, VectorStoreIndex, StorageContext, load_index_from_storage
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
 
@@ -47,10 +47,22 @@ def inicializar_cerebro():
         with open(os.path.join(diretorio_wiki, "guia.md"), "w") as f:
             f.write("# Segundo Cérebro\nColoque suas anotações Markdown aqui.")
 
-    leitor = SimpleDirectoryReader(input_dir=diretorio_wiki, required_exts=[".md"], recursive=True)
-    documentos = leitor.load_data()
-    
-    indice = VectorStoreIndex.from_documents(documentos)
+    persist_dir = os.path.join(diretorio_wiki, ".index_storage")
+    if os.path.exists(persist_dir) and os.listdir(persist_dir):
+        print("📥 Carregando índice do disco...")
+        storage_context = StorageContext.from_defaults(persist_dir=persist_dir)
+        indice = load_index_from_storage(storage_context)
+    else:
+        print("⚙️ Construindo índice e gerando embeddings (isso pode demorar na primeira vez)...")
+        leitor = SimpleDirectoryReader(input_dir=diretorio_wiki, required_exts=[".md"], recursive=True)
+        documentos = leitor.load_data()
+
+        indice = VectorStoreIndex.from_documents(documentos)
+
+        print("💾 Salvando índice em disco para as próximas execuções...")
+        os.makedirs(persist_dir, exist_ok=True)
+        indice.storage_context.persist(persist_dir=persist_dir)
+
     motor_de_busca = indice.as_query_engine(similarity_top_k=1)
     print("✅ Segundo Cérebro pronto e escutando na porta 5000!")
 

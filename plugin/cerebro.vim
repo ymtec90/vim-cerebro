@@ -90,7 +90,7 @@ function! s:CerebroFinalizado(channel)
                 call writefile(l:linhas_texto, l:md_file)
                 
                 " CORREÇÃO 1: --autoclose=0 garante que a janela fique aberta mesmo se o comando terminar
-                let l:floaterm_cmd = 'FloatermNew --title=Cérebro --width=0.7 --height=0.8 --autoclose=0 less ' . l:md_file
+                let l:floaterm_cmd = 'FloatermNew --title=Cérebro --width=0.7 --height=0.8 --autoclose=0 less ' . shellescape(l:md_file)
                 execute l:floaterm_cmd
             
             " 4. FALLBACK: Barra horizontal caso o Floaterm não exista

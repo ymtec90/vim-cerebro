@@ -15,6 +15,17 @@ let s:cerebro_buf = -1
 
 " --- FUNÇÕES PRINCIPAIS ---
 
+function! s:EnsureCerebroBuffer(height)
+    if !bufexists(s:cerebro_buf) || bufwinnr(s:cerebro_buf) == -1
+        rightbelow new
+        let s:cerebro_buf = bufnr('%')
+        setlocal buftype=nofile bufhidden=hide noswapfile wrap
+        execute 'resize ' . a:height
+    else
+        execute bufwinnr(s:cerebro_buf) . 'wincmd w'
+    endif
+endfunction
+
 function! s:ConsultarCerebro(pergunta, usar_contexto)
     " Prepara o contexto do arquivo atual, se solicitado
     let l:contexto = ""
@@ -23,16 +34,7 @@ function! s:ConsultarCerebro(pergunta, usar_contexto)
     endif
 
     " Prepara a janela horizontal abaixo do buffer atual
-    if !bufexists(s:cerebro_buf) || bufwinnr(s:cerebro_buf) == -1
-        " Abre horizontalmente na parte inferior
-        rightbelow new
-        let s:cerebro_buf = bufnr('%')
-        setlocal buftype=nofile bufhidden=hide noswapfile wrap
-        " Define a altura do painel para 5 linhas
-        resize 5
-    else
-        execute bufwinnr(s:cerebro_buf) . 'wincmd w'
-    endif
+    call s:EnsureCerebroBuffer(5)
 
     " Feedback visual inicial
     normal! ggdG
@@ -93,14 +95,7 @@ function! s:CerebroFinalizado(channel)
             
             " 4. FALLBACK: Barra horizontal caso o Floaterm não exista
             else
-                if !bufexists(s:cerebro_buf) || bufwinnr(s:cerebro_buf) == -1
-                    rightbelow new
-                    let s:cerebro_buf = bufnr('%')
-                    setlocal buftype=nofile bufhidden=hide noswapfile wrap
-                    resize 15
-                else
-                    execute bufwinnr(s:cerebro_buf) . 'wincmd w'
-                endif
+                call s:EnsureCerebroBuffer(15)
                 normal! ggdG
                 call append(0, l:linhas_texto)
                 wincmd p

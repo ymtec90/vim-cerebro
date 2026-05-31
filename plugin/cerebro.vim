@@ -212,7 +212,7 @@ endfunction
 
 function! s:StopCerebroAPI()
     " Desliga a API apenas se ELA foi iniciada por ESTA instância do Vim
-    if s:api_job != -1 && job_status(s:api_job) ==# 'run'
+    if type(s:api_job) == v:t_job && job_status(s:api_job) ==# 'run'
         echom "🧠 Desligando o Segundo Cérebro e liberando a RAM..."
         call job_stop(s:api_job)
     endif

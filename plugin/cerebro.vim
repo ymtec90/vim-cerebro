@@ -49,8 +49,17 @@ function! s:ConsultarCerebro(pergunta, usar_contexto)
     let l:json_payload = json_encode({'pergunta': a:pergunta, 'contexto': l:contexto})
     let s:temp_file = tempname()
     let l:cmd = ['curl', '-s', '-X', 'POST', g:cerebro_api_url, 
-               \ '-H', 'Content-Type: application/json', 
-               \ '-d', l:json_payload, '-o', s:temp_file]
+               \ '-H', 'Content-Type: application/json']
+
+    if exists('s:api_token') && !empty(s:api_token)
+        call add(l:cmd, '-H')
+        call add(l:cmd, 'Authorization: Bearer ' . s:api_token)
+    endif
+
+    call add(l:cmd, '-d')
+    call add(l:cmd, l:json_payload)
+    call add(l:cmd, '-o')
+    call add(l:cmd, s:temp_file)
 
     call job_start(l:cmd, {'close_cb': function('s:CerebroFinalizado')})
 endfunction
@@ -124,8 +133,17 @@ function! s:TrocarModelo(modelo)
     let l:url = substitute(g:cerebro_api_url, 'perguntar$', 'trocar_modelo', '')
 
     let l:cmd = ['curl', '-s', '-X', 'POST', l:url, 
-               \ '-H', 'Content-Type: application/json', 
-               \ '-d', l:json_payload, '-o', s:modelo_temp_file]
+               \ '-H', 'Content-Type: application/json']
+
+    if exists('s:api_token') && !empty(s:api_token)
+        call add(l:cmd, '-H')
+        call add(l:cmd, 'Authorization: Bearer ' . s:api_token)
+    endif
+
+    call add(l:cmd, '-d')
+    call add(l:cmd, l:json_payload)
+    call add(l:cmd, '-o')
+    call add(l:cmd, s:modelo_temp_file)
 
     echom "🔄 Carregando o modelo " . a:modelo . " na memória (Aguarde)..."
     call job_start(l:cmd, {'close_cb': function('s:ModeloTrocado')})
@@ -198,6 +216,13 @@ function! s:StartCerebroAPI()
         let l:python_path = get(g:, 'cerebro_python_cmd', 'python3')
         let l:api_script = l:api_dir . '/api.py'
 
+        " Gera o token e salva no arquivo da API
+        let l:token_file = l:api_dir . '/.cerebro_token'
+        let s:api_token = system(l:python_path . ' -c "import secrets; print(secrets.token_hex(16), end='''')"')
+        call writefile([s:api_token], l:token_file)
+        " Tenta restringir leitura
+        call system('chmod 600 ' . l:token_file)
+
         " Pega o diretório configurado pelo usuário no .vimrc ou usa um padrão
         let l:wiki_dir_padrao = l:api_dir . "/dados"
         let l:wiki_dir = expand(get(g:, 'cerebro_wiki_dir', l:wiki_dir_padrao))
@@ -207,6 +232,13 @@ function! s:StartCerebroAPI()
         
         " Inicia o processo de forma assíncrona, definindo o diretório correto
         let s:api_job = job_start(l:cmd, {'cwd': l:api_dir})
+    else
+        " Se já estava online, tentamos ler o token existente
+        let l:api_dir = s:plugin_root . '/api'
+        let l:token_file = l:api_dir . '/.cerebro_token'
+        if filereadable(l:token_file)
+            let s:api_token = readfile(l:token_file)[0]
+        endif
     endif
 endfunction
 

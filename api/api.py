@@ -1,5 +1,6 @@
 import os
 import sys
+from functools import wraps
 from flask import Flask, request, jsonify
 from llama_index.core import SimpleDirectoryReader, Settings, VectorStoreIndex
 from llama_index.embeddings.ollama import OllamaEmbedding
@@ -21,9 +22,34 @@ Settings.llm = Ollama(
 # Variáveis globais
 motor_de_busca = None
 indice = None # Agora o índice também é global para reaproveitarmos
+api_token = None
+
+def require_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not api_token:
+            return jsonify({"erro": "Não autorizado. Servidor sem token configurado."}), 401
+
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({"erro": "Não autorizado. Token ausente."}), 401
+
+        token = auth_header.split(' ')[1]
+        if token != api_token:
+            return jsonify({"erro": "Não autorizado. Token inválido."}), 401
+
+        return f(*args, **kwargs)
+    return decorated
 
 def inicializar_cerebro():
-    global motor_de_busca, indice
+    global motor_de_busca, indice, api_token
+
+    # Tenta ler o token de segurança
+    caminho_token = os.path.join(os.path.dirname(__file__), '.cerebro_token')
+    if os.path.exists(caminho_token):
+        with open(caminho_token, 'r') as f:
+            api_token = f.read().strip()
+        print("🔒 Segurança ativada: Token carregado.")
 
     # Define 'dados' como padrão, mas verifica se o Vim enviou parametro --wiki-dir
     diretorio_wiki = "dados"
@@ -55,6 +81,7 @@ def inicializar_cerebro():
     print("✅ Segundo Cérebro pronto e escutando na porta 5000!")
 
 @app.route('/perguntar', methods=['POST'])
+@require_auth
 def perguntar():
     dados = request.get_json()
     if not dados or 'pergunta' not in dados:
@@ -80,6 +107,7 @@ def perguntar():
 
 # --- NOVA ROTA: TROCAR MODELO DINAMICAMENTE ---
 @app.route('/trocar_modelo', methods=['POST'])
+@require_auth
 def trocar_modelo():
     global motor_de_busca, indice
     dados = request.get_json()

@@ -7,16 +7,19 @@ from llama_index.llms.ollama import Ollama
 
 app = Flask(__name__)
 
+def create_llm(model_name: str) -> Ollama:
+    return Ollama(
+        model=model_name,
+        request_timeout=600.0,
+        temperature=0.0,
+        additional_kwargs={"num_ctx": 2048}
+    )
+
 # Configurações Globais Iniciais
 Settings.embed_model = OllamaEmbedding(model_name="nomic-embed-text")
 Settings.chunk_size = 256 
 Settings.chunk_overlap = 25 
-Settings.llm = Ollama(
-    model="qwen2.5:1.5b", 
-    request_timeout=600.0, 
-    temperature=0.0,
-    additional_kwargs={"num_ctx": 2048} 
-)
+Settings.llm = create_llm("qwen2.5:1.5b")
 
 # Variáveis globais
 motor_de_busca = None
@@ -92,12 +95,7 @@ def trocar_modelo():
     
     try:
         # 1. Substitui o LLM nas configurações globais
-        Settings.llm = Ollama(
-            model=novo_modelo, 
-            request_timeout=600.0, 
-            temperature=0.0,
-            additional_kwargs={"num_ctx": 2048} 
-        )
+        Settings.llm = create_llm(novo_modelo)
         
         # 2. Recria o motor de busca apontando para o novo LLM (sem reler os arquivos)
         motor_de_busca = indice.as_query_engine(similarity_top_k=1)

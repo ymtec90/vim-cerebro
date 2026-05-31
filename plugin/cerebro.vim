@@ -11,6 +11,18 @@ let g:loaded_cerebro = 1
 " Configuração de porta padrão (o usuário pode sobrescrever no .vimrc)
 let g:cerebro_api_url = get(g:, 'cerebro_api_url', 'http://127.0.0.1:5000/perguntar')
 
+
+" Pegamos o caminho raiz do plugin AQUI FORA, onde <sfile> funciona corretamente
+let s:plugin_root = expand('<sfile>:p:h:h')
+
+function! s:GetApiToken()
+    let l:token_file = s:plugin_root . '/api/.api_token'
+    if filereadable(l:token_file)
+        return trim(readfile(l:token_file)[0])
+    endif
+    return ''
+endfunction
+
 let s:cerebro_buf = -1
 
 " --- FUNÇÕES PRINCIPAIS ---
@@ -48,8 +60,10 @@ function! s:ConsultarCerebro(pergunta, usar_contexto)
     " Prepara payload e requisição assíncrona
     let l:json_payload = json_encode({'pergunta': a:pergunta, 'contexto': l:contexto})
     let s:temp_file = tempname()
+    let l:token = s:GetApiToken()
     let l:cmd = ['curl', '-s', '-X', 'POST', g:cerebro_api_url, 
                \ '-H', 'Content-Type: application/json', 
+               \ '-H', 'Authorization: Bearer ' . l:token,
                \ '-d', l:json_payload, '-o', s:temp_file]
 
     call job_start(l:cmd, {'close_cb': function('s:CerebroFinalizado')})
@@ -123,8 +137,10 @@ function! s:TrocarModelo(modelo)
     " Pega a URL de consulta padrão e substitui 'perguntar' por 'trocar_modelo'
     let l:url = substitute(g:cerebro_api_url, 'perguntar$', 'trocar_modelo', '')
 
+    let l:token = s:GetApiToken()
     let l:cmd = ['curl', '-s', '-X', 'POST', l:url, 
                \ '-H', 'Content-Type: application/json', 
+               \ '-H', 'Authorization: Bearer ' . l:token,
                \ '-d', l:json_payload, '-o', s:modelo_temp_file]
 
     echom "🔄 Carregando o modelo " . a:modelo . " na memória (Aguarde)..."
@@ -176,8 +192,7 @@ endif
 " AUTO-START DA API FLASK
 " ==============================================================================
 
-" Pegamos o caminho raiz do plugin AQUI FORA, onde <sfile> funciona corretamente
-let s:plugin_root = expand('<sfile>:p:h:h')
+
 
 " Variável para guardar o ID do processo em background
 let s:api_job = -1
@@ -185,7 +200,7 @@ let s:api_job = -1
 function! s:StartCerebroAPI()
     " 1. Verifica se a porta 5000 já está respondendo (outro Vim pode ter ligado a API)
     " O comando curl falha silenciosamente se a API estiver desligada
-    let l:check_cmd = 'curl -s -o /dev/null http://127.0.0.1:5000/perguntar || echo "offline"'
+    let l:check_cmd = 'curl -s -o /dev/null http://127.0.0.1:5000/ping || echo "offline"'
     let l:status = system(l:check_cmd)
 
     if l:status =~# 'offline'

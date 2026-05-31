@@ -1,11 +1,47 @@
 import os
 import sys
+import secrets
 from flask import Flask, request, jsonify
 from llama_index.core import SimpleDirectoryReader, Settings, VectorStoreIndex
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
 
 app = Flask(__name__)
+
+API_TOKEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".api_token")
+API_TOKEN = None
+
+def get_or_create_token():
+    global API_TOKEN
+    if os.path.exists(API_TOKEN_FILE):
+        with open(API_TOKEN_FILE, "r") as f:
+            API_TOKEN = f.read().strip()
+    else:
+        API_TOKEN = secrets.token_hex(16)
+        # Escrever com permissões restritas
+        fd = os.open(API_TOKEN_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, 'w') as f:
+            f.write(API_TOKEN)
+
+get_or_create_token()
+
+@app.before_request
+def verificar_token():
+    if request.path == '/ping':
+        return
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({"erro": "Não autorizado. Token ausente ou inválido."}), 401
+
+    token = auth_header.split(' ')[1]
+    # Usar secrets.compare_digest para evitar timing attacks
+    if not secrets.compare_digest(token, API_TOKEN):
+        return jsonify({"erro": "Não autorizado. Token incorreto."}), 401
+
+@app.route('/ping', methods=['GET'])
+def ping():
+    return "pong", 200
+
 
 # Configurações Globais Iniciais
 Settings.embed_model = OllamaEmbedding(model_name="nomic-embed-text")

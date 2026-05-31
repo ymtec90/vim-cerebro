@@ -1,0 +1,5 @@
+.venv
+__pycache__
+
+# Tokens
+.api_token

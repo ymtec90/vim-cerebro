@@ -76,7 +76,8 @@ def perguntar():
         resposta = motor_de_busca.query(prompt_final)
         return jsonify({"resposta": str(resposta)})
     except Exception as e:
-        return jsonify({"erro": str(e)}), 500
+        app.logger.error("Erro no /perguntar", exc_info=True)
+        return jsonify({"erro": "Ocorreu um erro interno no servidor."}), 500
 
 # --- NOVA ROTA: TROCAR MODELO DINAMICAMENTE ---
 @app.route('/trocar_modelo', methods=['POST'])
@@ -104,8 +105,8 @@ def trocar_modelo():
         
         return jsonify({"sucesso": f"Modelo alterado com sucesso para {novo_modelo}!"})
     except Exception as e:
-        print(f"[API] Erro ao trocar modelo: {e}")
-        return jsonify({"erro": str(e)}), 500
+        app.logger.error("Erro ao trocar modelo", exc_info=True)
+        return jsonify({"erro": "Ocorreu um erro interno no servidor."}), 500
 
 if __name__ == "__main__":
     inicializar_cerebro()
